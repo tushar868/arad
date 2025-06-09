@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Your Amazon Gift Voucher</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #f7f7f7;
+      font-family: 'Segoe UI', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      flex-direction: column;
+      text-align: center;
+    }
+
+    .card {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+      padding: 30px 20px;
+      width: 90%;
+      max-width: 400px;
+    }
+
+    .card h1 {
+      color: #ff9900;
+      font-size: 22px;
+      margin-bottom: 10px;
+    }
+
+    .coupon {
+      font-size: 24px;
+      font-weight: bold;
+      color: #333;
+      background: #f1f1f1;
+      padding: 12px 18px;
+      border-radius: 10px;
+      margin: 20px 0;
+      word-break: break-word;
+    }
+
+    .note {
+      font-size: 14px;
+      color: #777;
+    }
+
+    .btn-home {
+      margin-top: 20px;
+      padding: 12px 20px;
+      border: none;
+      background: #000;
+      color: white;
+      font-size: 15px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h1>🎁 Your Amazon Voucher</h1>
+    <div id="couponBox" class="coupon">Loading...</div>
+    <div class="note">Use this coupon at checkout on Amazon.<br>Valid for a limited time.</div>
+    <button class="btn-home" onclick="window.location.href='home.html'">Back to Home</button>
+  </div>
+
+  <script>
+    // Get coupon from URL param
+    const params = new URLSearchParams(window.location.search);
+    const coupon = params.get("code");
+
+    if (coupon) {
+      document.getElementById("couponBox").textContent = coupon;
+    } else {
+      document.getElementById("couponBox").textContent = "No coupon found.";
+    }
+  </script>
+</body>
+</html>

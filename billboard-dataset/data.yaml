@@ -1,0 +1,4 @@
+path: billboard-dataset
+train: images/train
+val: images/val
+names: ['billboard']

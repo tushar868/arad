@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Curtain Reveal Ad</title>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: black;
+    }
+
+    #video {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+      z-index: 1;
+    }
+
+    #curtainVideo, #myAd {
+      position: absolute;
+      z-index: 2;
+      display: none;
+      object-fit: cover;
+    }
+
+    #scanMsg {
+      position: absolute;
+      bottom: 15px;
+      width: 100%;
+      text-align: center;
+      color: white;
+      font-size: 18px;
+      z-index: 3;
+    }
+
+    #tweetBtn {
+      position: absolute;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: #000;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      font-size: 16px;
+      border-radius: 30px;
+      cursor: pointer;
+      z-index: 4;
+      display: none;
+    }
+
+    #tweetBtn:hover {
+      color: #0d8ddb;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Camera Stream -->
+  <video id="video" autoplay playsinline></video>
+
+  <!-- Curtain Effect Video -->
+  <video id="curtainVideo" muted playsinline style="
+    position: absolute;
+    z-index: 10;
+    width: 100%;
+    height: auto;
+    object-fit: cover;
+    display: none;
+    background: transparent;">
+    <source src="./assets/curtain.webm" type="video/webm">
+  </video>
+
+  <!-- Final Ad Image -->
+  <img id="myAd" src="./assets/Amazon.jpg" alt="My Ad" />
+
+  <!-- Scan Message -->
+  <div id="scanMsg">Scanning for billboard...</div>
+
+  <!-- Tweet Button -->
+  <button id="tweetBtn">Post & Earn</button>
+
+  <script>
+    const video = document.getElementById("video");
+    const curtain = document.getElementById("curtainVideo");
+    const ad = document.getElementById("myAd");
+    const tweetBtn = document.getElementById("tweetBtn");
+    const scanMsg = document.getElementById("scanMsg");
+
+    // 1. Start camera
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+      .then((stream) => {
+        video.srcObject = stream;
+      })
+      .catch((err) => {
+        console.error("Camera error:", err);
+      });
+
+    // 2. Take snapshot and send to backend
+    async function detectBillboard() {
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageData = canvas.toDataURL("image/jpeg");
+
+      const response = await fetch("https://bytespathteam.in:5000/detect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: imageData }),
+      });
+
+      const result = await response.json();
+      if (result.success && result.detections > 0) {
+        playCurtainEffect();
+      } else {
+        setTimeout(detectBillboard, 2000); // Retry
+      }
+    }
+
+    // 3. Play curtain → show ad → enable tweet
+    function playCurtainEffect() {
+      curtain.style.display = "block";
+      curtain.currentTime = 0;
+      curtain.play();
+      scanMsg.style.display = "none";
+
+      curtain.addEventListener("ended", () => {
+        curtain.style.display = "none";
+        ad.style.display = "block";
+        tweetBtn.style.display = "inline-block";
+      });
+    }
+
+    // 4. Tweet button logic
+    tweetBtn.onclick = () => {
+      const tweetText = encodeURIComponent("Check out this amazing ad by Goyal & Co! #AdReveal #CurtainMagic");
+      const imageUrl = encodeURIComponent("https://bytespathteam.in/assets/Amazon.jpg");
+      const twitterUrl = `https://twitter.com/intent/tweet?text=${tweetText}&url=${imageUrl}`;
+      window.open(twitterUrl, '_blank');
+
+      setTimeout(() => {
+        const username = prompt("Enter your Twitter username (without @):");
+
+        if (username) {
+          fetch('https://bytespathteam.in:5001/verify-tweet', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              username: username,
+              keyword: '#AdReveal'
+            })
+          })
+          .then(res => res.json())
+          .then(data => {
+            if (data.success) {
+              window.location.href = `voucher.html?code=${data.coupon}`;
+            } else {
+              alert("❌ " + (data.message || data.error));
+            }
+          })
+          .catch(err => {
+            alert("Error verifying tweet: " + err);
+          });
+        }
+      }, 8000); // Delay to let user post tweet
+    };
+
+    // 5. Begin detection loop
+    video.addEventListener("loadeddata", () => {
+      detectBillboard();
+    });
+  </script>
+
+</body>
+</html>
