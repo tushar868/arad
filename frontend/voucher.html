@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Claim Your Amazon Gift Card</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #1a1a1a;
+      font-family: 'Segoe UI', sans-serif;
+      color: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+
+    .container {
+      width: 90%;
+      max-width: 380px;
+      text-align: center;
+    }
+
+    .ticket {
+      background: #fff;
+      border-radius: 16px;
+      padding: 20px;
+      color: #000;
+      position: relative;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.3);
+    }
+
+    .ticket::before,
+    .ticket::after {
+      content: '';
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      background: #1a1a1a;
+      border-radius: 50%;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 2;
+    }
+
+    .ticket::before { left: -10px; }
+    .ticket::after { right: -10px; }
+
+    .ticket-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .ticket-title {
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    .ticket-desc {
+      font-size: 12px;
+      color: #888;
+      margin-top: 6px;
+    }
+
+    .dashed-line {
+      border-top: 2px dashed #ccc;
+      margin: 14px 0;
+    }
+
+    .coupon-code {
+      background: #333;
+      color: #fff;
+      padding: 12px;
+      font-size: 18px;
+      font-weight: bold;
+      border-radius: 8px;
+      letter-spacing: 2px;
+      margin-bottom: 10px;
+    }
+
+    .btn-claim, .btn-copy {
+      margin-top: 10px;
+      padding: 12px 20px;
+      background: black;
+      color: white;
+      border: none;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    .hidden { display: none; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.9); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .fadeIn { animation: fadeIn 0.4s ease-in-out forwards; }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Claim Section -->
+    <div id="claimSection" class="ticket fadeIn">
+      <div class="ticket-header">
+        <img src="./assets/first/amazon-Pay.png" alt="icon" style="width:60px; height:40px;" />
+        <div class="ticket-title">₹250 Amazon Gift Voucher</div>
+      </div>
+      <div class="ticket-desc">Ends on 30 June 2025</div>
+      <div class="dashed-line"></div>
+      <div class="ticket-desc">Click below to reveal your coupon</div>
+      <button class="btn-claim" onclick="revealVoucher()">Claim Now</button>
+    </div>
+
+    <!-- Voucher Code Ticket -->
+    <div id="voucherCard" class="ticket hidden fadeIn">
+      <img src="./assets/first/amazon-Pay.png" alt="Amazon Card" style="width:100%; border-radius:12px; margin-bottom:12px;" />
+      <div id="couponBox" class="coupon-code">XXXX XXXX XXXX</div>
+      <button class="btn-copy" onclick="copyCode()">Copy Code</button>
+      <div class="ticket-desc">Valid till 30 June 2025</div>
+    </div>
+  </div>
+
+  <script>
+    const coupon = new URLSearchParams(window.location.search).get("code");
+
+    function revealVoucher() {
+      if (!coupon) {
+        alert("No coupon found. Please access via the correct link.");
+        return;
+      }
+      document.getElementById("couponBox").textContent = coupon;
+      document.getElementById("claimSection").classList.add("hidden");
+      document.getElementById("voucherCard").classList.remove("hidden");
+    }
+
+    function copyCode() {
+      const code = document.getElementById("couponBox").textContent;
+      navigator.clipboard.writeText(code)
+        .then(() => alert("Copied: " + code))
+        .catch(err => alert("Failed to copy: " + err));
+    }
+  </script>
+
+</body>
+</html>
