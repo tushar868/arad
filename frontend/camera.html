@@ -104,7 +104,7 @@ async function detectBillboard() {
 
   const cx = json.corners.reduce((sum, p) => sum + p.x, 0) / 4;
   const cy = json.corners.reduce((sum, p) => sum + p.y, 0) / 4;
-  const scaleFactor = 1.35;
+  const scaleFactor = 2.0;
 
   const pts = json.corners.map(pt => {
     const dx = pt.x - cx;
@@ -213,7 +213,7 @@ postBtn.onclick = () => {
     } catch (err) {
       alert("⚠️ Error during verification. Try again later.");
     }
-  }, 60000); 
+  }, 20000); 
 };
 
 startCamera();
