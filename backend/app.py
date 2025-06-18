@@ -14,11 +14,11 @@ CORS(app)
 # === Twitter API Setup ===
 BEARER_TOKEN = os.getenv("TWITTER_BEARER_TOKEN")
 if not BEARER_TOKEN:
-    BEARER_TOKEN = "AAAAAAAAAAAAAAAAAAAAAMSj2QEAAAAAxddYYmf4%2BmgbxC%2BnRfHNq6jcP64%3DOaHe7oFVykBE9pj0EVEMyt15FORFay18rrrKEzngbTjOsOiMLy"  # Replace with your actual token for local testing
+    BEARER_TOKEN = "AAAAAAAAAAAAAAAAAAAAAMSj2QEAAAAAxddYYmf4%2BmgbxC%2BnRfHNq6jcP64%3DOaHe7oFVykBE9pj0EVEMyt15FORFay18rrrKEzngbTjOsOiMLy"
 client = tweepy.Client(bearer_token=BEARER_TOKEN)
 
 # === Load YOLOv8 Model ===
-model = YOLO("runs/detect/train/weights/best.pt")  # Adjust path to your trained weights
+model = YOLO("runs/detect/train/weights/best.pt")
 
 # === ROUTE: Detect billboard from base64 image ===
 @app.route('/detect', methods=['POST'])
@@ -35,31 +35,33 @@ def detect():
 
         results = model.predict(img, conf=0.25)[0]
 
-        # === Segmentation masks (preferred) ===
-        if hasattr(results, 'masks') and results.masks is not None:
-            mask = results.masks.data[0].cpu().numpy()
-            contours, _ = cv2.findContours((mask * 255).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            if not contours:
-                return jsonify({'error': 'No contour found'}), 404
-
-            approx = cv2.approxPolyDP(contours[0], 0.02 * cv2.arcLength(contours[0], True), True)
-            if len(approx) != 4:
-                return jsonify({'error': 'Billboard not rectangular'}), 422
-
-            corners = [{'x': int(pt[0][0]), 'y': int(pt[0][1])} for pt in approx]
-
-        # === Fallback to bounding box ===
-        elif results.boxes is not None and len(results.boxes) > 0:
-            box = results.boxes[0].xyxy[0].cpu().numpy()
-            x1, y1, x2, y2 = map(int, box)
-            corners = [
-                {'x': x1, 'y': y1},
-                {'x': x2, 'y': y1},
-                {'x': x2, 'y': y2},
-                {'x': x1, 'y': y2}
-            ]
-        else:
+        boxes = results.boxes
+        if boxes is None or len(boxes) == 0:
             return jsonify({'error': 'No billboard detected'}), 404
+
+        max_area = 0
+        best_box = None
+
+        for box in boxes:
+            x1, y1, x2, y2 = map(int, box.xyxy[0].cpu().numpy())
+            area = (x2 - x1) * (y2 - y1)
+            cx = (x1 + x2) / 2
+            cy = (y1 + y2) / 2
+
+            if area > max_area and is_center_priority(cx, cy, img.shape):
+                max_area = area
+                best_box = [x1, y1, x2, y2]
+
+        if not best_box:
+            return jsonify({'error': 'No central billboard detected'}), 404
+
+        x1, y1, x2, y2 = best_box
+        corners = [
+            {'x': x1, 'y': y1},
+            {'x': x2, 'y': y1},
+            {'x': x2, 'y': y2},
+            {'x': x1, 'y': y2},
+        ]
 
         return jsonify({'corners': corners})
 
@@ -67,29 +69,31 @@ def detect():
         print(f"[Detection Error] {e}")
         return jsonify({'error': 'Detection failed'}), 500
 
-# === Fallback GET for /detect (method not allowed) ===
-@app.route('/detect', methods=['GET'])
-def detect_get_method_not_allowed():
-    return jsonify({"error": "Method Not Allowed. Use POST"}), 405
+def is_center_priority(cx, cy, shape):
+    h, w = shape[:2]
+    center_margin_x = w * 0.2
+    center_margin_y = h * 0.2
+    return (w/2 - center_margin_x < cx < w/2 + center_margin_x and
+            h/2 - center_margin_y < cy < h/2 + center_margin_y)
 
-# === ROUTE: Twitter Verification ===
+@app.route('/detect', methods=['GET'])
+def detect_get():
+    return jsonify({'error': 'Use POST method'}), 405
+
 @app.route('/verify', methods=['POST'])
 def verify():
     try:
-        data = request.get_json()
-        username = data.get('username', '').replace('@', '').strip()
-
+        username = request.json.get("username", "").replace("@", "").strip()
         if not username:
-            return jsonify({"verified": False, "error": "Username missing"}), 400
+            return jsonify({"verified": False, "error": "Username required"}), 400
 
         user = client.get_user(username=username)
-        if not user.data or not user.data.id:
+        if not user.data:
             return jsonify({"verified": False, "error": "User not found"}), 404
 
         tweets = client.get_users_tweets(id=user.data.id, max_results=5)
-
         for tweet in tweets.data or []:
-            if '#AdReveal' in tweet.text:
+            if "#AdReveal" in tweet.text:
                 return jsonify({"verified": True})
 
         return jsonify({"verified": False})
@@ -98,9 +102,8 @@ def verify():
         print(f"[Twitter Verify Error] {e}")
         return jsonify({"verified": False, "error": str(e)}), 500
 
-# === ROUTE: Claim Coupon ===
 @app.route('/claim')
-def claim_coupon():
+def claim():
     try:
         with open('coupons.json', 'r') as f:
             data = json.load(f)
@@ -108,8 +111,8 @@ def claim_coupon():
         for coupon in data['coupons']:
             if not coupon.get('claimed'):
                 coupon['claimed'] = True
-                with open('coupons.json', 'w') as fw:
-                    json.dump(data, fw, indent=2)
+                with open('coupons.json', 'w') as f2:
+                    json.dump(data, f2, indent=2)
                 return jsonify({"coupon": coupon['code']})
 
         return jsonify({"error": "No coupons left"}), 404
@@ -118,6 +121,5 @@ def claim_coupon():
         print(f"[Claim Error] {e}")
         return jsonify({"error": "Failed to claim"}), 500
 
-# === MAIN ===
-if __name__ == "__main__":
+if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
