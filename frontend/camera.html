@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Scan Billboard</title>
-  <style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Scan Billboard</title>
+<style>
     html, body {
       margin: 0;
       padding: 0;
@@ -70,33 +70,11 @@ async function startCamera() {
     videoEl.srcObject = stream;
     videoEl.onloadedmetadata = () => {
       videoEl.play();
-      setTimeout(() => detectBillboard(), 3000); // wait for camera to adjust
+      setTimeout(() => detectBillboard(), 3000);
     };
   } catch (err) {
     alert("❌ Camera access denied.");
   }
-}
-
-function getBestBox(boxes, width, height) {
-  const centerX = width / 2;
-  const centerY = height / 2;
-  let bestScore = -Infinity;
-  let bestBox = null;
-
-  boxes.forEach(box => {
-    const [x1, y1, x2, y2] = box;
-    const area = (x2 - x1) * (y2 - y1);
-    const boxCenterX = (x1 + x2) / 2;
-    const boxCenterY = (y1 + y2) / 2;
-    const dist = Math.sqrt((centerX - boxCenterX) ** 2 + (centerY - boxCenterY) ** 2);
-    const score = area - dist * 2; // weight center priority
-    if (score > bestScore) {
-      bestScore = score;
-      bestBox = box;
-    }
-  });
-
-  return bestBox;
 }
 
 async function detectBillboard() {
@@ -126,36 +104,55 @@ async function detectBillboard() {
   const height = window.innerHeight;
 
   scene = new THREE.Scene();
-  camera = new THREE.OrthographicCamera(-width / 2, width / 2, height / 2, -height / 2, 0.1, 10);
+  camera = new THREE.OrthographicCamera(-width/2, width/2, height/2, -height/2, 0.1, 10);
   camera.position.z = 1;
   renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true });
   renderer.setSize(width, height);
 
-  const cx = json.corners.reduce((s, p) => s + p.x, 0) / 4;
-  const cy = json.corners.reduce((s, p) => s + p.y, 0) / 4;
+  // === Compute ratio ===
+  const topWidth = Math.hypot(json.corners[1].x - json.corners[0].x, json.corners[1].y - json.corners[0].y);
+  const leftHeight = Math.hypot(json.corners[3].x - json.corners[0].x, json.corners[3].y - json.corners[0].y);
+  const ratio = topWidth / leftHeight;
+
+  // === Smart video selection ===
+  let adSource;
+  if (ratio > 2.5) {
+    adSource = "./assets/4_1.mp4";
+  } else if (ratio > 2.0) {
+    adSource = "./assets/3_1.mp4";
+  } else if (ratio > 1.5) {
+    adSource = "./assets/16_9.mp4";
+  } else if (ratio > 0.8) {
+    adSource = "./assets/1_1.4.mp4";
+  } else {
+    adSource = "./assets/2_3.mp4";
+  }
+
+  // === Perspective points ===
+  const cx = json.corners.reduce((s,p)=>s+p.x,0)/4;
+  const cy = json.corners.reduce((s,p)=>s+p.y,0)/4;
   const scaleFactor = 1.05;
   const pts = json.corners.map(pt => {
-    const dx = pt.x - cx;
-    const dy = pt.y - cy;
+    const dx = pt.x - cx, dy = pt.y - cy;
     const expandedX = cx + dx * scaleFactor;
     const expandedY = cy + dy * scaleFactor;
-    const x = expandedX - videoEl.videoWidth / 2;
-    const y = (videoEl.videoHeight / 2) - expandedY;
-    return [x * (width / videoEl.videoWidth), y * (height / videoEl.videoHeight)];
+    const x = expandedX - videoEl.videoWidth/2;
+    const y = (videoEl.videoHeight/2) - expandedY;
+    return [x*(width/videoEl.videoWidth), y*(height/videoEl.videoHeight)];
   });
 
   const geometry = new THREE.BufferGeometry();
   const vertices = new Float32Array([
-    pts[0][0], pts[0][1], 0,  pts[1][0], pts[1][1], 0,
-    pts[2][0], pts[2][1], 0,  pts[0][0], pts[0][1], 0,
-    pts[2][0], pts[2][1], 0,  pts[3][0], pts[3][1], 0,
+    pts[0][0], pts[0][1],0,  pts[1][0], pts[1][1],0,
+    pts[2][0], pts[2][1],0,  pts[0][0], pts[0][1],0,
+    pts[2][0], pts[2][1],0,  pts[3][0], pts[3][1],0
   ]);
-  const uvs = new Float32Array([ 0,1, 1,1, 1,0, 0,1, 1,0, 0,0 ]);
-  geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-  geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  const uvs = new Float32Array([0,1,1,1,1,0,0,1,1,0,0,0]);
+  geometry.setAttribute('position', new THREE.BufferAttribute(vertices,3));
+  geometry.setAttribute('uv', new THREE.BufferAttribute(uvs,2));
 
   const curtainVideo = document.createElement("video");
-  curtainVideo.src = "./assets/RATIO.mp4";
+  curtainVideo.src = adSource;
   curtainVideo.muted = true;
   curtainVideo.playsInline = true;
   curtainVideo.loop = false;
@@ -178,7 +175,7 @@ async function detectBillboard() {
     const lat = pos.coords.latitude, lon = pos.coords.longitude;
     const locRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
     const locJson = await locRes.json();
-    locationText = `${locJson.address.road || ''}, ${locJson.address.city || ''}`;
+    locationText = `${locJson.address.road||''}, ${locJson.address.city||''}`;
   } catch {}
 
   setTimeout(() => {
@@ -195,32 +192,23 @@ function animate() {
 postBtn.onclick = () => {
   const tweet = encodeURIComponent(`Check out this amazing ad! 📍 ${locationText} #AdReveal`);
   window.open(`https://twitter.com/intent/tweet?text=${tweet}`, '_blank');
-
   setTimeout(async () => {
     const username = prompt("Enter your Twitter username to verify:")?.trim();
     if (!username) return alert("❌ Username required.");
-
     try {
       const res = await fetch("https://bytespathteam.in/api/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method:"POST", headers:{ "Content-Type":"application/json" },
         body: JSON.stringify({ username })
       });
-
       const json = await res.json();
       if (json.verified) {
         const claimRes = await fetch("https://bytespathteam.in/api/claim");
         const claimJson = await claimRes.json();
-
         if (claimJson.coupon) {
           alert("✅ Tweet verified! Redirecting to your voucher...");
           window.location.href = `voucher.html?code=${encodeURIComponent(claimJson.coupon)}`;
-        } else {
-          alert("✅ Tweet verified, but all vouchers claimed.");
-        }
-      } else {
-        alert("❌ Tweet not found. Please ensure it contains #AdReveal.");
-      }
+        } else alert("✅ Tweet verified, but all vouchers claimed.");
+      } else alert("❌ Tweet not found. Please ensure it contains #AdReveal.");
     } catch (err) {
       alert("⚠️ Error verifying tweet. Try again.");
     }
